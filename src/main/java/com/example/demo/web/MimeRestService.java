@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.demo.dao.MimeRepository;
 import com.example.demo.entities.Mime;
 import com.example.demo.entities.MimeFileInfo;
+import com.example.demo.exceptions.MimeFileException;
 import com.example.demo.utils.MimeChecked;
 
 @RestController
@@ -89,24 +90,24 @@ public class MimeRestService {
 	}
 	
 	@GetMapping(path="/check/mime/directory2")
-	public Page<MimeChecked> checkMimeOnDir2(@RequestParam(value="directory") String directory,@PageableDefault(sort = { "fileName" }, value = 10000) Pageable pageable) {		
+	public Page<MimeChecked> checkMimeOnDir2(@RequestParam(value="directory") String directory,@PageableDefault(sort = { "fileName" }, value = 10000) Pageable pageable) throws MimeFileException {		
 		List<MimeChecked> result = new ArrayList<>();
 		try(Stream<Path> dir = Files.walk(Paths.get(directory)) ){
-		 result = dir.filter(Files::isRegularFile)
-					.map(x -> {
+		 result = dir.filter(f -> f.toFile().isFile())
+					.map(file -> {
 						try {
 							
-		                    return new MimeChecked(x.getFileName().toString(), !mimeRepository.findByMimeType(Files.probeContentType(x)).isEmpty());							
-						} catch (IOException e) {							
-							logger.error("Error{}",e);
+		                    return new MimeChecked(file.getFileName().toString(), !mimeRepository.findByMimeType(Files.probeContentType(file)).isEmpty());							
+						} catch (IOException e) {
+							
 							return null;
 						}
 					} 
 					
 						).collect(Collectors.toList());
-		logger.info("RRRRR{}",result);
+		
 		} catch (IOException e) {
-		logger.error("Error during check mime on directory {}",e);
+			throw new MimeFileException("Directory "+"["+directory+"] not found"); 
 	}
 		return new PageImpl<>(result, pageable, result.size());
 	}
